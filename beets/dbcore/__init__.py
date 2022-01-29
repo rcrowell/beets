@@ -21,7 +21,9 @@ from .query import Query, FieldQuery, MatchQuery, AndQuery, OrQuery
 from .types import Type
 from .queryparse import query_from_strings
 from .queryparse import sort_from_strings
+from .queryparse import agg_from_strings
 from .queryparse import parse_sorted_query
+from .queryparse import parse_sorted_agg_query
 from .query import InvalidQueryError
 
 # flake8: noqa

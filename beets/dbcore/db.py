@@ -27,7 +27,7 @@ import beets
 from beets.util import functemplate
 from beets.util import py3_path
 from beets.dbcore import types
-from .query import MatchQuery, NullSort, TrueQuery
+from .query import MatchQuery, NullAggregate, NullSort, TrueQuery
 from collections.abc import Mapping
 
 
@@ -642,6 +642,56 @@ class Model:
         self[key] = self._parse(key, string)
 
 
+class AggregateModel(Model):
+
+    @classmethod
+    def derive_cls(cls, model_cls, fields, name=None):
+        name = name or f"Aggregate{model_cls.__class__.__name__}"
+        return type(name, (model_cls, AggregateModel,), {
+            '_fields': {model_cls._fields[x] for x in fields},
+        })
+
+    def __init__(self, db=None, **values):
+        self.model_class = model_class
+        self._db = db
+        self._values = values
+        self._values_flex = {}
+
+    # TODO(rcrowell): Drop these in favor of MutableModel/BaseModel?
+    def clear_dirty(self):
+        raise NotImplementedError()
+
+    def __setitem__(self, key, value):
+        raise NotImplementedError()
+
+    def __delitem__(self, key):
+        raise NotImplementedError()
+
+    def update(self, values):
+        raise NotImplementedError()
+
+    def __setattr__(self, key, value):
+        raise NotImplementedError()
+
+    def __delattr__(self, key):
+        raise NotImplementedError()
+
+    def store(self, fields=None):
+        raise NotImplementedError()
+
+    def load(self):
+        raise NotImplementedError()
+
+    def remove(self):
+        raise NotImplementedError()
+
+    def add(self):
+        raise NotImplementedError()
+
+    def set_parse(self, key, string):
+        raise NotImplementedError()
+
+
 # Database controller and supporting interfaces.
 
 class Results:
@@ -855,6 +905,8 @@ class Transaction:
         """Execute an SQL statement with substitution values and return
         a list of rows from the database.
         """
+        #import sys; sys.stderr.write('%s\n' % (statement.strip(),))
+        #import sys; sys.stderr.write('%r\n' % (subvals,))
         cursor = self.db._connection().execute(statement, subvals)
         return cursor.fetchall()
 
@@ -1059,7 +1111,7 @@ class Database:
 
     # Querying.
 
-    def _fetch(self, model_cls, query=None, sort=None):
+    def _fetch(self, model_cls, query=None, sort=None, agg=None):
         """Fetch the objects of type `model_cls` matching the given
         query. The query may be given as a string, string sequence, a
         Query object, or None (to fetch everything). `sort` is an
@@ -1067,12 +1119,17 @@ class Database:
         """
         query = query or TrueQuery()  # A null query.
         sort = sort or NullSort()  # Unsorted.
+        agg = agg or NullAggregate()  # No aggregation.
+        select = agg.select_clause() or '*'
         where, subvals = query.clause()
+        group_by = agg.group_clause()
         order_by = sort.order_clause()
 
-        sql = ("SELECT * FROM {} WHERE {} {}").format(
+        sql = ("SELECT {} FROM {} WHERE {} {} {}").format(
+            select or '*',
             model_cls._table,
             where or '1',
+            f"GROUP BY {group_by}" if group_by else '',
             f"ORDER BY {order_by}" if order_by else '',
         )
 

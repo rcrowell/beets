@@ -21,16 +21,24 @@ from . import query
 
 PARSE_QUERY_PART_REGEX = re.compile(
     # Non-capturing optional segment for the keyword.
-    r'(-|\^)?'   # Negation prefixes.
+    r'(-|\^)?'    # Negation prefixes.
 
     r'(?:'
-    r'(\S+?)'    # The field key.
-    r'(?<!\\):'  # Unescaped :
+    r'(\S+?)'     # The field key.
+    r'(?<!\\):'   # Unescaped :
     r')?'
 
-    r'(.*)',         # The term itself.
+    r'(.*)',      # The term itself.
 
-    re.I  # Case-insensitive.
+    re.I          # Case-insensitive.
+)
+
+
+PARSE_AGGREGATE_PART_REGEX = re.compile(
+    r'@'              # Must begin with @
+    r'([^:\s]+)?'     # Optional field name
+    r'(?:\:(\S+))?',  # Optional func name
+    re.I
 )
 
 
@@ -212,14 +220,45 @@ def sort_from_strings(model_cls, sort_parts, case_insensitive=True):
     return sort
 
 
-def parse_sorted_query(model_cls, parts, prefixes={},
-                       case_insensitive=True):
-    """Given a list of strings, create the `Query` and `Sort` that they
-    represent.
+def agg_from_strings(model_cls, agg_parts):
+    if not agg_parts:
+        return query.NullAggregate()
+    if len(agg_parts) == 1:
+        return construct_agg_part(model_cls, agg_parts[0])
+    agg = query.MultipleAggregate()
+    for part in agg_parts:
+        agg.add_agg(construct_agg_part(model_cls, part))
+    return agg
+
+
+def construct_agg_part(model_cls, part):
+    part = part.strip()
+    match = PARSE_AGGREGATE_PART_REGEX.match(part)
+    assert match, 'part must be @[field][:func]'
+    field, func = match.groups()
+
+    if field and (field in model_cls._fields):
+      if func is None:
+          return query.SelectFieldAggregate(field)
+      if func == 'min':
+          return query.MinFieldAggregate(field)
+      if func == 'max':
+          return query.MaxFieldAggregate(field)
+      raise ValueError('unsupported func')
+    elif not field:
+        if func == 'count':
+            return query.CountAggregate()
+    raise ValueError('unsupported agg part')
+
+
+def _parse_query(model_cls, parts, prefixes={}, case_insensitive=True):
+    """Given a list of strings, create the `Query`, `Aggregate`, and `Sort`
+    that they represent.
     """
-    # Separate query token and sort token.
+    # Separate query token, aggregate token, and sort token.
     query_parts = []
     sort_parts = []
+    agg_parts = []
 
     # Split up query in to comma-separated subqueries, each representing
     # an AndQuery, which need to be joined together in one OrQuery
@@ -236,6 +275,9 @@ def parse_sorted_query(model_cls, parts, prefixes={},
                 query.AndQuery, model_cls, prefixes, subquery_parts
             ))
             del subquery_parts[:]
+        elif part.startswith('@'):
+            # Aggregate parts are @field, @field:func or @:func.
+            agg_parts.append(part)
         else:
             # Sort parts (1) end in + or -, (2) don't have a field, and
             # (3) consist of more than just the + or -.
@@ -250,3 +292,20 @@ def parse_sorted_query(model_cls, parts, prefixes={},
     q = query.OrQuery(query_parts) if len(query_parts) > 1 else query_parts[0]
     s = sort_from_strings(model_cls, sort_parts, case_insensitive)
     return q, s
+
+
+def parse_sorted_query(model_cls, parts, prefixes={},
+                       case_insensitive=True):
+    """Given a list of strings, create the `Query` and `Sort` that they
+    represent.
+    """
+    query, agg, sort = _parse_query(model_cls, parts, prefixes,
+                                    case_insensitive)
+    if agg:
+        raise ValueError('aggregates are not permitted')
+    return query, sory
+
+
+def parse_sorted_agg_query(model_cls, parts, prefixes={},
+                           case_insensitive=True):
+    return _parse_query(model_cls, parts, prefixes, case_insensitive)

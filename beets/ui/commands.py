@@ -1097,6 +1097,17 @@ list_cmd.func = list_func
 default_commands.append(list_cmd)
 
 
+def report_func(lib, opts, args):
+    query = decargs(args)
+    for row in lib.report(query):
+        print(row)
+
+
+report_cmd = ui.Subcommand('report', help='run a library report')
+report_cmd.func = report_func
+default_commands.append(report_cmd)
+
+
 # update: Update library contents according to on-disk tags.
 
 def update_items(lib, query, album, move, pretend, fields):

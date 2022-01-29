@@ -1432,6 +1432,21 @@ def parse_query_string(s, model_cls):
     return parse_query_parts(parts, model_cls)
 
 
+def parse_agg_parts(parts, model_cls):
+    pass
+
+
+def parse_agg_string(s, model_cls):
+    message = f"Aggregate is not unicode: {s!r}"
+    assert isinstance(s, str), message
+    try:
+        parts = shlex.split(s)
+    except ValueError as exc:
+        #TODO(rcrowell): Switch to better exception.
+        raise
+    return parse_agg_parts(parts, model_cls)
+
+
 def _sqlite_bytelower(bytestring):
     """ A custom ``bytelower`` sqlite function so we can compare
     bytestrings in a semi case insensitive fashion.
@@ -1509,7 +1524,7 @@ class Library(dbcore.Database):
 
     # Querying.
 
-    def _fetch(self, model_cls, query, sort=None):
+    def _fetch(self, model_cls, query, sort=None, agg=None):
         """Parse a query and fetch.
 
         If an order specification is present in the query string
@@ -1531,7 +1546,7 @@ class Library(dbcore.Database):
             sort = parsed_sort
 
         return super()._fetch(
-            model_cls, query, sort
+            model_cls, query, sort, agg,
         )
 
     @staticmethod
@@ -1546,6 +1561,11 @@ class Library(dbcore.Database):
         return dbcore.sort_from_strings(
             Item, beets.config['sort_item'].as_str_seq())
 
+    @staticmethod
+    def get_default_item_agg():
+        """Get a :class:`Aggregate` object for items from the config option."""
+        return dbcore.agg_from_strings(Item, beets.config['agg_item'].as_str_seq())
+
     def albums(self, query=None, sort=None):
         """Get :class:`Album` objects matching the query."""
         return self._fetch(Album, query, sort or self.get_default_album_sort())
@@ -1553,6 +1573,13 @@ class Library(dbcore.Database):
     def items(self, query=None, sort=None):
         """Get :class:`Item` objects matching the query."""
         return self._fetch(Item, query, sort or self.get_default_item_sort())
+
+    def report(self, agg=None, query=None, sort=None):
+        sort_ = sort or self.get_default_item_sort()
+        agg = agg or self.get_default_item_agg()
+        print(agg.group_clause())
+        import pdb; pdb.set_trace()
+        return self._fetch(Item, query, sort_, agg)
 
     # Convenience accessors.
 

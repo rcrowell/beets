@@ -949,3 +949,182 @@ class NullSort(Sort):
 
     def __hash__(self):
         return 0
+
+
+# Aggregates.
+
+class Aggregate:
+
+    def select_clause(self):
+        raise NotImplementedError()
+
+
+class MultipleAggregate(Aggregate):
+
+    def __init__(self, aggs=None):
+        self.aggs = list(aggs) if aggs else []
+
+    def add_agg(self, agg):
+        self.aggs.append(agg)
+
+    def select_clause(self):
+        return ', '.join(filter(None, (x.select_clause() for x in self.aggs)))
+
+    def group_clause(self):
+        return ', '.join(filter(None, (x.group_clause() for x in self.aggs)))
+
+    def __repr__(self):
+        return f'MultipleAggregate({self.aggs!r})'
+
+    def __hash__(self):
+        return hash(tuple(self.aggs))
+
+    def __eq__(self, other):
+        return super().__eq__(other) and \
+            self.aggs == other.aggs
+
+
+class FieldAggregate(Aggregate):
+
+    def __init__(self, field, alias=None, func=None):
+        self.field = field
+        self.func = func
+        self.alias = alias or (f"{field}:{func}" if func else field)
+
+    def group_clause(self):
+        return None
+
+    def __repr__(self):
+        return '<{}: {}>'.format(
+            type(self).__name__,
+            self.field,
+        )
+
+    def __hash__(self):
+        return hash((self.field, self.func, self.alias))
+
+    def __eq__(self, other):
+        return super().__eq__(other) and \
+            self.field == other.field and \
+            self.func == other.func and \
+            self.alias == other.alias
+
+
+class SelectFieldAggregate(FieldAggregate):
+
+    def __init__(self, field, alias=None):
+        super().__init__(field, alias, func=None)
+
+    def select_clause(self):
+        field = self.field
+        alias = self.alias
+        return f"{field} AS {alias}" if field != alias else field
+
+    def group_clause(self):
+        return self.alias
+
+
+class MinFieldAggregate(FieldAggregate):
+
+    def __init__(self, field, alias=None):
+        super().__init__(field, alias, func='min')
+
+    def select_clause(self):
+        field = self.field
+        alias = self.alias
+        return f"MIN({field}) AS {alias}"
+
+
+class MaxFieldAggregate(FieldAggregate):
+
+    def __init__(self, field, alias=None):
+        super().__init__(field, alias, func='max')
+
+    def select_clause(self):
+        field = self.field
+        alias = self.alias
+        return f"MAX({field}) AS {alias}"
+
+
+class CountAggregate(Aggregate):
+
+    def __init__(self, alias=None):
+        self.alias = alias or 'count'
+
+    def select_clause(self):
+        alias = self.alias
+        return f"COUNT(*) AS {alias}"
+
+    def group_clause(self):
+        return None
+
+    def __repr__(self):
+        return '<{}>'.format(
+            type(self).__name__,
+        )
+
+
+class NullAggregate(Aggregate):
+
+    def select_clause(self):
+        return None
+
+    def group_clause(self):
+        return None
+
+
+# # Uniques.
+
+# class Unique:
+
+#     def __init__(self, fields):
+#         self.fields = tuple(fields)
+
+#     def select_clause(self):
+#         fields = ', '.join(self.fields)
+#         return f"DISTINCT {fields}"
+
+
+# class NullUnique:
+
+#     def select_clause(self):
+#         return None
+
+
+# # Grouping.
+
+# class Group:
+#     """An abstract class representing a group operation for a query."""
+
+#     def select_clause(self):
+#         raise NotImplementedError()
+
+#     def group_clause(self):
+#         raise NotImplementedError()
+
+
+# class FieldGroup(Group):
+
+#     def __init__(self, field, alias=None):
+#         self.field = field
+#         self.alias = alias or field
+
+#     def group_clause(self):
+#         return self.alias
+
+
+# class FixedFieldGroup(FieldGroup):
+
+#     def select_clause(self):
+#         field = self.field
+#         alias = self.alias
+#         return f"{field} AS {alias}"
+
+
+# class NullGroup(Group):
+
+#     def select_clause(self):
+#         return ''
+
+#     def group_clause(self):
+#         return ''
