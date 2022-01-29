@@ -1030,6 +1030,10 @@ class Item(LibModel):
             return normpath(os.path.join(basedir, subpath))
 
 
+class AggregateItem(Item, dbcore.AggregateModel):
+    pass
+
+
 class Album(LibModel):
     """Provide access to information about albums stored in a
     library.
@@ -1574,12 +1578,10 @@ class Library(dbcore.Database):
         """Get :class:`Item` objects matching the query."""
         return self._fetch(Item, query, sort or self.get_default_item_sort())
 
-    def report(self, agg=None, query=None, sort=None):
-        sort_ = sort or self.get_default_item_sort()
+    def report(self, query=None, sort=None, agg=None):
+        sort = sort or self.get_default_item_sort()
         agg = agg or self.get_default_item_agg()
-        print(agg.group_clause())
-        import pdb; pdb.set_trace()
-        return self._fetch(Item, query, sort_, agg)
+        return self._fetch(AggregateItem, query, sort, agg)
 
     # Convenience accessors.
 

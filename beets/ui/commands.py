@@ -1099,6 +1099,7 @@ default_commands.append(list_cmd)
 
 def report_func(lib, opts, args):
     query = decargs(args)
+    import pdb; pdb.set_trace()
     for row in lib.report(query):
         print(row)
 

@@ -652,12 +652,14 @@ class AggregateModel(Model):
         })
 
     def __init__(self, db=None, **values):
-        self.model_class = model_class
-        self._db = db
-        self._values = values
-        self._values_flex = {}
+        object.__setattr__(self, '_db', db)
+        object.__setattr__(self, '_values', values)
 
     # TODO(rcrowell): Drop these in favor of MutableModel/BaseModel?
+    @classmethod
+    def _awaken(cls, db=None, fixed_values={}, flex_values={}):
+        return cls(db, values=dict(**fixed_values, **flex_values))
+
     def clear_dirty(self):
         raise NotImplementedError()
 
@@ -667,8 +669,14 @@ class AggregateModel(Model):
     def __delitem__(self, key):
         raise NotImplementedError()
 
+    def keys(self, computed=False):
+        return self._values.keys()
+
     def update(self, values):
         raise NotImplementedError()
+
+    def __getattr__(self, key):
+        return self._values[key]
 
     def __setattr__(self, key, value):
         raise NotImplementedError()
@@ -758,7 +766,8 @@ class Results:
             else:
                 while self._rows:
                     row = self._rows.pop(0)
-                    obj = self._make_model(row, flex_attrs.get(row['id'], {}))
+                    row_id = row['id'] if 'id' in row.keys() else None
+                    obj = self._make_model(row, flex_attrs.get(row_id, {}))
                     # If there is a slow-query predicate, ensurer that the
                     # object passes it.
                     if not self.query or self.query.match(obj):

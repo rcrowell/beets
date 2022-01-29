@@ -1018,10 +1018,10 @@ class SelectFieldAggregate(FieldAggregate):
     def select_clause(self):
         field = self.field
         alias = self.alias
-        return f"{field} AS {alias}" if field != alias else field
+        return f"{field} AS `{alias}`" if field != alias else field
 
     def group_clause(self):
-        return self.alias
+        return f"`{self.alias}`"
 
 
 class MinFieldAggregate(FieldAggregate):
@@ -1030,9 +1030,7 @@ class MinFieldAggregate(FieldAggregate):
         super().__init__(field, alias, func='min')
 
     def select_clause(self):
-        field = self.field
-        alias = self.alias
-        return f"MIN({field}) AS {alias}"
+        return f"MIN({self.field}) AS `{self.alias}`"
 
 
 class MaxFieldAggregate(FieldAggregate):
@@ -1041,9 +1039,7 @@ class MaxFieldAggregate(FieldAggregate):
         super().__init__(field, alias, func='max')
 
     def select_clause(self):
-        field = self.field
-        alias = self.alias
-        return f"MAX({field}) AS {alias}"
+        return f"MAX({self.field}) AS `{self.alias}`"
 
 
 class CountAggregate(Aggregate):
@@ -1052,8 +1048,7 @@ class CountAggregate(Aggregate):
         self.alias = alias or 'count'
 
     def select_clause(self):
-        alias = self.alias
-        return f"COUNT(*) AS {alias}"
+        return f"COUNT(*) AS `{self.alias}`"
 
     def group_clause(self):
         return None
